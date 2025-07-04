@@ -15,4 +15,12 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  server: {
+    host: '0.0.0.0',  // 允許外部訪問
+    port: 4173
+  },
+  preview: {
+    host: '0.0.0.0',  // 允許外部訪問
+    port: 4173
+  }
 })
