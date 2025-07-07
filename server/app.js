@@ -50,6 +50,6 @@ app.use('/api/divorce', divorceRoutes);  // 離婚統計：/api/divorce/*
 const PORT = process.env.PORT || 3000;
 
 // 啟動伺服器並監聽指定端口
-app.listen(PORT, () => {
+app.listen(PORT,'0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
