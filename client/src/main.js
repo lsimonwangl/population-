@@ -5,7 +5,7 @@ import router from './router'
 import axios from 'axios'
 
 const axiosInstance = axios.create({
-  baseURL: 'http://43.213.16.88:3000/api',
+  baseURL: 'http://localhost:3000/api',
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json'

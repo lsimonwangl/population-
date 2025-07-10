@@ -17,10 +17,10 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',  // 允許外部訪問
-    port: 4173
+    port: 5173
   },
   preview: {
     host: '0.0.0.0',  // 允許外部訪問
-    port: 4173
+    port: 5173
   }
 })

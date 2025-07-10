@@ -1,0 +1,27 @@
+services:
+  mongodb:
+    image: mongo:8.0.11
+    container_name: mongodbtest
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  server:
+    build: ./server
+    ports:
+      - "3000:3000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/population
+    depends_on:
+      - mongodb
+
+  client:
+    build: ./client
+    container_name: client
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+volumes:
+  mongodb_data: 
