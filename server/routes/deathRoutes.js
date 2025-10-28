@@ -1,108 +1,80 @@
 
+// ===== 死亡統計相關的 API 路由檔案 =====
+// 這個檔案處理所有與死亡統計相關的 HTTP 請求
+
 const express = require('express');
 const router = express.Router();
-const Record = require('../models/Record');
 
+// 引入資料庫連接池
+const { pool } = require('../config/database');
+
+// ===== API 端點：查詢某月份的死亡總數 =====
 router.get('/total/:yyyymm', async (req, res) => {
   try {
     const yyyymm = parseInt(req.params.yyyymm);
-    const result = await Record.aggregate([
-      { $match: { statistic_yyyymm: yyyymm } },
-      { $group: { _id: null, total: { $sum: "$death_total" } } }
-    ]);
-    if (result.length === 0) return res.status(404).json({ message: `找不到 ${yyyymm} 月的死亡資料` });
-    res.json({ total: result[0].total });
+
+    const [rows] = await pool.query(
+      'SELECT SUM(death_total) as total FROM records WHERE statistic_yyyymm = ?',
+      [yyyymm]
+    );
+
+    if (rows[0].total === null) {
+      return res.status(404).json({ message: `找不到 ${yyyymm} 月的死亡資料` });
+    }
+
+    res.json({ total: rows[0].total });
   } catch (err) {
     res.status(500).json({ message: '伺服器錯誤', error: err.message });
   }
 });
 
-/*router.get('/ratio/:yyyymm/:village', async (req, res) => {
-  try {
-    const { yyyymm, village } = req.params;
-    const result = await Record.findOne({
-      statistic_yyyymm: parseInt(yyyymm),
-      village
-    });
-    if (!result) return res.status(404).json({ message: '找不到該村里資料' });
-    res.json({
-      male: result.death_m,
-      female: result.death_f,
-      ratio: result.death_m / (result.death_f || 1)
-    });
-  } catch (err) {
-    res.status(500).json({ message: '伺服器錯誤', error: err.message });
-  }
-});*/
+// ===== API 端點：查詢某村里的死亡男女比例 =====
 router.get('/ratio/:village', async (req, res) => {
   try {
     const { village } = req.params;
 
-    const result = await Record.aggregate([
-      { $match: { village } }, // 找到該村里名稱的所有紀錄（可能有多個 site_id）
-      {
-        $addFields: {
-          ratio: {
-            $cond: {
-              if: { $eq: ["$death_f", 0] },
-              then: null,
-              else: { $round: [{ $divide: ["$death_m", "$death_f"] }, 2] }
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          site_id: 1,
-          village: 1,
-          statistic_yyyymm: 1,
-          death_m: 1,
-          death_f: 1,
-          ratio: 1
-        }
-      },
-      { $sort: { site_id: 1, statistic_yyyymm: 1 } } // 排序條件：先 site_id，再月份
-    ]);
+    const [rows] = await pool.query(
+      `SELECT
+        site_id, village, statistic_yyyymm, death_m, death_f,
+        CASE
+          WHEN death_f = 0 THEN NULL
+          ELSE ROUND(death_m / death_f, 2)
+        END as ratio
+       FROM records
+       WHERE village = ?
+       ORDER BY site_id, statistic_yyyymm`,
+      [village]
+    );
 
-    if (result.length === 0) {
+    if (rows.length === 0) {
       return res.status(404).json({ message: '找不到該村里資料' });
     }
 
-    res.json(result);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ message: '伺服器錯誤', error: err.message });
   }
 });
 
-
-
+// ===== API 端點：查詢某地區的死亡趨勢 =====
 router.get('/trend/:site_id/:village', async (req, res) => {
   try {
     const { site_id, village } = req.params;
-    const result = await Record.aggregate([
-      { $match: { site_id, village } },
-      {
-        $group: {
-          _id: "$statistic_yyyymm",
-          total: { $sum: "$death_total" }
-        }
-      },
-      { $sort: { _id: 1 } },
-      {
-        $project: {
-          month: "$_id",
-          total: 1,
-          _id: 0
-        }
-      }
-    ]);
 
-    if (result.length === 0) {
+    const [rows] = await pool.query(
+      `SELECT statistic_yyyymm as month, SUM(death_total) as total
+       FROM records
+       WHERE site_id = ? AND village = ?
+       GROUP BY statistic_yyyymm
+       ORDER BY statistic_yyyymm`,
+      [site_id, village]
+    );
+
+    if (rows.length === 0) {
       return res.status(404).json({ message: '找不到該地區的村里資料' });
     }
 
-    res.json(result);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ message: '伺服器錯誤', error: err.message });
   }

@@ -16,11 +16,8 @@ const Record = require('../models/Record');
 // 請求體：包含完整的記錄資料（JSON 格式）
 router.post('/', async (req, res) => {
   try {
-    // 使用請求體的資料建立新記錄實例
-    const newRecord = new Record(req.body);
-
-    // 儲存到資料庫
-    const saved = await newRecord.save();
+    // 使用請求體的資料建立新記錄
+    const saved = await Record.create(req.body);
 
     // 回傳建立成功的記錄，HTTP 狀態碼 201（Created）
     res.status(201).json(saved);
@@ -35,8 +32,8 @@ router.post('/', async (req, res) => {
 // 功能：查詢資料庫中的記錄總數，用於分頁計算
 router.get('/count', async (req, res) => {
   try {
-    // 計算資料庫中的文件總數
-    const count = await Record.countDocuments();
+    // 計算資料庫中的記錄總數
+    const count = await Record.count();
 
     // 回傳總數
     res.json({ count });
@@ -55,11 +52,10 @@ router.get('/', async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   // 每頁顯示的記錄數量
   const limit = 10;
-  // 計算要跳過的記錄數量
-  const skip = (page - 1) * limit;
+
   try {
-    // 查詢記錄，使用 skip 和 limit 實現分頁
-    const records = await Record.find().skip(skip).limit(limit);
+    // 查詢記錄，使用分頁
+    const records = await Record.findWithPagination(page, limit);
     // 回傳查詢結果
     res.json(records);
   } catch (err) {
@@ -75,9 +71,7 @@ router.get('/', async (req, res) => {
 router.get('/month/:yyyymm', async (req, res) => {
   try {
     // 查詢符合指定年月的所有記錄
-    const records = await Record.find({
-      statistic_yyyymm: parseInt(req.params.yyyymm)
-    });
+    const records = await Record.findByMonth(parseInt(req.params.yyyymm));
 
     // 回傳查詢結果
     res.json(records);
@@ -87,56 +81,26 @@ router.get('/month/:yyyymm', async (req, res) => {
   }
 });
 
-// 使用聚合管線處理同名村里分組
+// 使用分組查詢處理同名村里
 router.get('/village/:name', async (req, res) => {
   const villageName = req.params.name;
 
   try {
-    const pipeline = [
-      // 篩選指定村里
-      { $match: { village: villageName } },
+    const sites = await Record.findByVillage(villageName);
 
-      // 排序（確保 records 裡是照順序的）
-      { $sort: { site_id: 1, statistic_yyyymm: 1 } },
-
-      // 分組（用 site_id 作為 key）
-      {
-        $group: {
-          _id: '$site_id',
-          district_code: { $first: '$district_code' },
-          village: { $first: '$village' },
-          records: { $push: '$$ROOT' } // 推入完整文件
-        }
-      },
-
-      // 格式調整：改成與原本一致
-      {
-        $project: {
-          _id: 0,
-          site_id: '$_id',
-          district_code: 1,
-          village: 1,
-          records: 1
-        }
-      }
-    ];
-
-    const result = await Record.aggregate(pipeline);
-
-    if (result.length === 0) {
+    if (sites.length === 0) {
       return res.status(404).json({ message: '找不到該村里資料' });
     }
 
     res.json({
       village_name: villageName,
-      total_sites: result.length,
-      sites: result
+      total_sites: sites.length,
+      sites: sites
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 // ===== API 端點：精確查詢特定地區的村里記錄 =====
 // 路由：GET /api/records/village/:site_id/:village
@@ -148,10 +112,7 @@ router.get('/village/:site_id/:village', async (req, res) => {
     const { site_id, village } = req.params;
 
     // 使用雙重條件查詢：site_id + village
-    const records = await Record.find({
-      site_id,
-      village
-    }).sort({ statistic_yyyymm: 1 });
+    const records = await Record.findBySiteAndVillage(site_id, village);
 
     // 如果找不到資料
     if (records.length === 0) {
@@ -167,18 +128,13 @@ router.get('/village/:site_id/:village', async (req, res) => {
 
 // ===== API 端點：更新記錄 =====
 // 路由：PUT /api/records/:id
-// 參數：id（記錄的 MongoDB ObjectId）
+// 參數：id（記錄的 ID）
 // 功能：更新指定 ID 的記錄資料
 // 請求體：包含要更新的欄位資料（JSON 格式）
 router.put('/:id', async (req, res) => {
   try {
-    // 使用 findByIdAndUpdate 更新記錄
-    // { new: true } 選項表示回傳更新後的資料
-    const updated = await Record.findByIdAndUpdate(
-      req.params.id,  // 要更新的記錄 ID
-      req.body,       // 更新的資料
-      { new: true }   // 回傳更新後的資料
-    );
+    // 更新記錄
+    const updated = await Record.updateById(req.params.id, req.body);
 
     // 如果找不到要更新的記錄，回傳 404 錯誤
     if (!updated) return res.status(404).json({ message: "Record not found" });
@@ -193,7 +149,7 @@ router.put('/:id', async (req, res) => {
 
 // ===== API 端點：查詢單一記錄 =====
 // 路由：GET /api/records/:id
-// 參數：id（記錄的 MongoDB ObjectId）
+// 參數：id（記錄的 ID）
 // 功能：根據 ID 查詢特定的記錄
 router.get('/:id', async (req, res) => {
   try {
@@ -206,19 +162,19 @@ router.get('/:id', async (req, res) => {
     // 回傳查詢到的記錄
     res.json(record);
   } catch (err) {
-    // 伺服器錯誤（如無效的 ObjectId 格式）
+    // 伺服器錯誤
     res.status(500).json({ message: err.message });
   }
 });
 
 // ===== API 端點：刪除記錄 =====
 // 路由：DELETE /api/records/:id
-// 參數：id（記錄的 MongoDB ObjectId）
+// 參數：id（記錄的 ID）
 // 功能：刪除指定 ID 的記錄
 router.delete('/:id', async (req, res) => {
   try {
-    // 根據 ID 查詢並刪除記錄
-    const deleted = await Record.findByIdAndDelete(req.params.id);
+    // 根據 ID 刪除記錄
+    const deleted = await Record.deleteById(req.params.id);
 
     // 如果找不到要刪除的記錄，回傳 404 錯誤
     if (!deleted) return res.status(404).json({ message: "Record not found" });
@@ -234,4 +190,3 @@ router.delete('/:id', async (req, res) => {
 // ===== 匯出路由器 =====
 // 將此路由器匯出，供主應用程式使用
 module.exports = router;
-

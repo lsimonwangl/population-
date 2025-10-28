@@ -1,20 +1,29 @@
 services:
-  mongodb:
-    image: mongo:8.0.11
-    container_name: mongodbtest
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
     ports:
-      - "27018:27017"
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=population
+      - MYSQL_USER=population_user
+      - MYSQL_PASSWORD=population_pass
     volumes:
-      - mongodb_data:/data/db
+      - mysql_data:/var/lib/mysql
 
   server:
     build: ./server
     ports:
       - "3000:3000"
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/population
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=population
+      - DB_USER=population_user
+      - DB_PASSWORD=population_pass
     depends_on:
-      - mongodb
+      - mysql
 
   client:
     build: ./client
@@ -34,4 +43,4 @@ services:
     depends_on:
       - client
 volumes:
-  mongodb_data: 
+  mysql_data: 

@@ -1,37 +1,202 @@
 
-// ===== MongoDB 資料模型定義檔案 =====
-// 這個檔案定義了人口資料的資料結構，就像是資料庫的藍圖
+// ===== MySQL 資料模型定義檔案 =====
+// 這個檔案定義了人口資料的資料庫操作函數
 
-// 引入 Mongoose（MongoDB 的 Node.js 驅動程式）
-const mongoose = require('mongoose');
+const { pool } = require('../config/database');
 
-// ===== 定義資料結構（Schema） =====
-// Schema 定義了每筆記錄應該包含哪些欄位和資料類型
-const recordSchema = new mongoose.Schema({
-  // ===== 基本識別資訊 =====
-  statistic_yyyymm: Number,    // 統計年月（如：10810 = 108年10月）
-  district_code: String,       // 行政區代碼
-  site_id: String,             // 地點 ID（唯一識別碼）
-  village: String,             // 村里名稱
+// ===== 資料庫操作函數 =====
 
-  // ===== 出生相關統計 =====
-  birth_total: Number,         // 出生總數
-  birth_total_m: Number,       // 男性出生數
-  birth_total_f: Number,       // 女性出生數
+// 建立新記錄
+const create = async (data) => {
+  const [result] = await pool.query(
+    `INSERT INTO records (
+      statistic_yyyymm, district_code, site_id, village,
+      birth_total, birth_total_m, birth_total_f,
+      death_total, death_m, death_f,
+      marry_pair, divorce_pair
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.statistic_yyyymm, data.district_code, data.site_id, data.village,
+      data.birth_total || 0, data.birth_total_m || 0, data.birth_total_f || 0,
+      data.death_total || 0, data.death_m || 0, data.death_f || 0,
+      data.marry_pair || 0, data.divorce_pair || 0
+    ]
+  );
+  return { id: result.insertId, ...data };
+};
 
-  // ===== 死亡相關統計 =====
-  death_total: Number,         // 死亡總數
-  death_m: Number,             // 男性死亡數
-  death_f: Number,             // 女性死亡數
+// 計算總記錄數
+const count = async () => {
+  const [rows] = await pool.query('SELECT COUNT(*) as count FROM records');
+  return rows[0].count;
+};
 
-  // ===== 婚姻相關統計 =====
-  marry_pair: Number,          // 結婚對數
-  divorce_pair: Number         // 離婚對數
-}, {
-  collection: 'records'        // 指定 MongoDB 中的集合名稱
-});
+// 分頁查詢所有記錄
+const findWithPagination = async (page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+  const [rows] = await pool.query(
+    'SELECT * FROM records ORDER BY id DESC LIMIT ? OFFSET ?',
+    [limit, offset]
+  );
+  return rows;
+};
 
-// ===== 匯出模型 =====
-// 將 Schema 轉換為可操作的 Model，並命名為 'Record'
-// 這個 Model 可以用來進行資料庫的 CRUD 操作
-module.exports = mongoose.model('Record', recordSchema);
+// 根據 ID 查詢單一記錄
+const findById = async (id) => {
+  const [rows] = await pool.query('SELECT * FROM records WHERE id = ?', [id]);
+  return rows[0] || null;
+};
+
+// 根據年月查詢記錄
+const findByMonth = async (yyyymm) => {
+  const [rows] = await pool.query(
+    'SELECT * FROM records WHERE statistic_yyyymm = ?',
+    [yyyymm]
+  );
+  return rows;
+};
+
+// 根據村里名稱查詢（支持同名村里分組）
+const findByVillage = async (villageName) => {
+  const [rows] = await pool.query(
+    `SELECT * FROM records
+     WHERE village = ?
+     ORDER BY site_id, statistic_yyyymm`,
+    [villageName]
+  );
+
+  // 按 site_id 分組
+  const grouped = {};
+  rows.forEach(row => {
+    if (!grouped[row.site_id]) {
+      grouped[row.site_id] = {
+        site_id: row.site_id,
+        district_code: row.district_code,
+        village: row.village,
+        records: []
+      };
+    }
+    grouped[row.site_id].records.push(row);
+  });
+
+  return Object.values(grouped);
+};
+
+// 根據地區代碼和村里名稱查詢
+const findBySiteAndVillage = async (siteId, village) => {
+  const [rows] = await pool.query(
+    'SELECT * FROM records WHERE site_id = ? AND village = ? ORDER BY statistic_yyyymm',
+    [siteId, village]
+  );
+  return rows;
+};
+
+// 更新記錄
+const updateById = async (id, data) => {
+  const [result] = await pool.query(
+    `UPDATE records SET
+      statistic_yyyymm = ?, district_code = ?, site_id = ?, village = ?,
+      birth_total = ?, birth_total_m = ?, birth_total_f = ?,
+      death_total = ?, death_m = ?, death_f = ?,
+      marry_pair = ?, divorce_pair = ?
+     WHERE id = ?`,
+    [
+      data.statistic_yyyymm, data.district_code, data.site_id, data.village,
+      data.birth_total, data.birth_total_m, data.birth_total_f,
+      data.death_total, data.death_m, data.death_f,
+      data.marry_pair, data.divorce_pair,
+      id
+    ]
+  );
+
+  if (result.affectedRows === 0) {
+    return null;
+  }
+
+  return findById(id);
+};
+
+// 刪除記錄
+const deleteById = async (id) => {
+  const record = await findById(id);
+  if (!record) {
+    return null;
+  }
+
+  await pool.query('DELETE FROM records WHERE id = ?', [id]);
+  return record;
+};
+
+// 統計查詢 - 按年月分組的出生數
+const getBirthStatsByMonth = async () => {
+  const [rows] = await pool.query(
+    `SELECT statistic_yyyymm, SUM(birth_total) as total
+     FROM records
+     GROUP BY statistic_yyyymm
+     ORDER BY statistic_yyyymm`
+  );
+  return rows;
+};
+
+// 統計查詢 - 按年月分組的死亡數
+const getDeathStatsByMonth = async () => {
+  const [rows] = await pool.query(
+    `SELECT statistic_yyyymm, SUM(death_total) as total
+     FROM records
+     GROUP BY statistic_yyyymm
+     ORDER BY statistic_yyyymm`
+  );
+  return rows;
+};
+
+// 統計查詢 - 按年月分組的結婚數
+const getMarryStatsByMonth = async () => {
+  const [rows] = await pool.query(
+    `SELECT statistic_yyyymm, SUM(marry_pair) as total
+     FROM records
+     GROUP BY statistic_yyyymm
+     ORDER BY statistic_yyyymm`
+  );
+  return rows;
+};
+
+// 統計查詢 - 按年月分組的離婚數
+const getDivorceStatsByMonth = async () => {
+  const [rows] = await pool.query(
+    `SELECT statistic_yyyymm, SUM(divorce_pair) as total
+     FROM records
+     GROUP BY statistic_yyyymm
+     ORDER BY statistic_yyyymm`
+  );
+  return rows;
+};
+
+// 總計統計
+const getTotalStats = async () => {
+  const [rows] = await pool.query(
+    `SELECT
+      SUM(birth_total) as total_births,
+      SUM(death_total) as total_deaths,
+      SUM(marry_pair) as total_marriages,
+      SUM(divorce_pair) as total_divorces
+     FROM records`
+  );
+  return rows[0];
+};
+
+module.exports = {
+  create,
+  count,
+  findWithPagination,
+  findById,
+  findByMonth,
+  findByVillage,
+  findBySiteAndVillage,
+  updateById,
+  deleteById,
+  getBirthStatsByMonth,
+  getDeathStatsByMonth,
+  getMarryStatsByMonth,
+  getDivorceStatsByMonth,
+  getTotalStats
+};

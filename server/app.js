@@ -9,8 +9,10 @@ require('dotenv').config();
 // ===== 引入必要的套件 =====
 const express = require('express');        // Express.js 網頁框架
 const cors = require('cors');              // 跨域資源共享中間件
-const mongoose = require('mongoose');      // MongoDB 資料庫連接工具
 const bodyParser = require('body-parser'); // 請求內容解析中間件
+
+// ===== 引入資料庫配置 =====
+const { initDatabase } = require('./config/database');
 
 // ===== 引入路由模組 =====
 // 每個路由檔案負責處理特定功能的 API 端點
@@ -30,12 +32,13 @@ app.use(cors());
 // 設定 JSON 解析器，讓伺服器能夠解析 JSON 格式的請求內容
 app.use(bodyParser.json());
 
-// ===== 連接 MongoDB 資料庫 =====
-mongoose.connect(process.env.MONGO_URL, {
-  useNewUrlParser: true,      // 使用新的 URL 解析器
-  useUnifiedTopology: true    // 使用新的伺服器發現和監控引擎
-}).then(() => console.log("MongoDB connected"))    // 連接成功
-  .catch(err => console.log(err));                 // 連接失敗
+// ===== 初始化並連接 MySQL 資料庫 =====
+initDatabase()
+  .then(() => console.log("MySQL database connected and initialized"))
+  .catch(err => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1); // 如果資料庫連接失敗，終止程序
+  });
 
 // ===== 設定 API 路由 =====
 // 將不同的路由模組掛載到對應的路徑上
@@ -50,6 +53,6 @@ app.use('/api/divorce', divorceRoutes);  // 離婚統計：/api/divorce/*
 const PORT = process.env.PORT || 3000;
 
 // 啟動伺服器並監聽指定端口
-app.listen(PORT,'0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
 });
