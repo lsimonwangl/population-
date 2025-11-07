@@ -4,6 +4,10 @@
 .env.*.local
 server/.env
 
+# Claude Code settings
+.claude/
+.claude/settings.local.json
+
 # Dependencies
 node_modules/
 */node_modules/
