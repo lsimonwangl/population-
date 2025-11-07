@@ -88,14 +88,14 @@ const deleteRecord = async (id) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="record in site.records" :key="record._id">
+            <tr v-for="record in site.records" :key="record.id">
               <td>{{ record.statistic_yyyymm }}</td>
               <td>{{ record.birth_total }}</td>
               <td>{{ record.death_total }}</td>
               <td>{{ record.marry_pair }}</td>
               <td>{{ record.divorce_pair }}</td>
               <td>
-                <button @click="confirmDelete(record._id)" class="delete-btn">刪除</button>
+                <button @click="confirmDelete(record.id)" class="delete-btn">刪除</button>
               </td>
             </tr>
           </tbody>

@@ -67,8 +67,8 @@ const fetchDeathTrend = async () => {
           <td>{{ item.statistic_yyyymm }}</td>
           <td>{{ item.birth_total }}</td>
           <td>{{ item.death_total }}</td>
-          <td>{{ item.marry_total }}</td>
-          <td>{{ item.divorce_total }}</td>
+          <td>{{ item.marry_pair }}</td>
+          <td>{{ item.divorce_pair }}</td>
         </tr>
       </tbody>
     </table>

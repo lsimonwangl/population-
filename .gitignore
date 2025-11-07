@@ -1,0 +1,57 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+server/.env
+
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Docker
+.docker/
+
+# Build output
+dist/
+dist-ssr/
+build/
+*.local
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.sql.gz
+*.sql.backup
+mysql_data/
+backups/
+
+# Scripts with sensitive content
+*_password*.sh
+reset_*.sh
+
+# Temp files
+*.tmp
+*.temp
+*.swp
+*~

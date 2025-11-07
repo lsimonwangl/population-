@@ -2,28 +2,35 @@ services:
   mysql:
     image: mysql:8.0
     container_name: mysql_db
+    command: --local-infile=1
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root_password
-      - MYSQL_DATABASE=population
-      - MYSQL_USER=population_user
-      - MYSQL_PASSWORD=population_pass
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   server:
     build: ./server
     ports:
       - "3000:3000"
     environment:
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_NAME=population
-      - DB_USER=population_user
-      - DB_PASSWORD=population_pass
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
   client:
     build: ./client
