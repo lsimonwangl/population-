@@ -10,6 +10,7 @@ require('dotenv').config();
 const express = require('express');        // Express.js 網頁框架
 const cors = require('cors');              // 跨域資源共享中間件
 const bodyParser = require('body-parser'); // 請求內容解析中間件
+const helmet = require('helmet');          // 安全性中間件，設定 HTTP 安全標頭
 
 // ===== 引入資料庫配置 =====
 const { initDatabase } = require('./config/database');
@@ -26,19 +27,33 @@ const divorceRoutes = require('./routes/divorceRoutes'); // 離婚統計功能
 const app = express();
 
 // ===== 設定中間件 =====
+// 使用 Helmet 增加安全性（設定各種 HTTP 安全標頭）
+app.use(helmet());
 // 啟用 CORS，允許前端跨域請求後端 API
-app.use(cors());
+// 限制只允許指定的來源訪問，提高安全性
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['http://localhost:5173', 'http://localhost:80', 'http://localhost'];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    // 允許沒有 origin 的請求（如 Postman 或伺服器端請求）
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS blocked request from origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // 設定 JSON 解析器，讓伺服器能夠解析 JSON 格式的請求內容
 app.use(bodyParser.json());
-
-// ===== 初始化並連接 MySQL 資料庫 =====
-initDatabase()
-  .then(() => console.log("MySQL database connected and initialized"))
-  .catch(err => {
-    console.error('Failed to initialize database:', err);
-    process.exit(1); // 如果資料庫連接失敗，終止程序
-  });
 
 // ===== 設定 API 路由 =====
 // 將不同的路由模組掛載到對應的路徑上
@@ -48,11 +63,22 @@ app.use('/api/death', deathRoutes);      // 死亡統計：/api/death/*
 app.use('/api/marry', marryRoutes);      // 婚姻統計：/api/marry/*
 app.use('/api/divorce', divorceRoutes);  // 離婚統計：/api/divorce/*
 
-// ===== 啟動伺服器 =====
-// 設定伺服器端口（從環境變數或預設 3000）
+// ===== 初始化並啟動伺服器 =====
 const PORT = process.env.PORT || 3000;
 
-// 啟動伺服器並監聽指定端口
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+// 使用 async IIFE 確保資料庫初始化完成後再啟動伺服器
+(async () => {
+  try {
+    // 先初始化資料庫
+    await initDatabase();
+    console.log("MySQL database connected and initialized");
+
+    // 資料庫準備好後才啟動伺服器
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to initialize database:', err);
+    process.exit(1); // 如果資料庫連接失敗，終止程序
+  }
+})();

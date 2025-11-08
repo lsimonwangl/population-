@@ -10,14 +10,22 @@ const router = express.Router();
 // 引入人口記錄資料模型
 const Record = require('../models/Record');
 
+// 引入驗證中間件
+const {
+  validateRecord,
+  validateUpdateRecord,
+  validateIdParam,
+  validateQueryParams
+} = require('../middleware/validator');
+
 // ===== API 端點：新增人口記錄 =====
 // 路由：POST /api/records
 // 功能：建立新的人口統計記錄
 // 請求體：包含完整的記錄資料（JSON 格式）
-router.post('/', async (req, res) => {
+router.post('/', validateRecord, async (req, res) => {
   try {
-    // 使用請求體的資料建立新記錄
-    const saved = await Record.create(req.body);
+    // 使用驗證後的資料建立新記錄
+    const saved = await Record.create(req.validatedData);
 
     // 回傳建立成功的記錄，HTTP 狀態碼 201（Created）
     res.status(201).json(saved);
@@ -131,10 +139,10 @@ router.get('/village/:site_id/:village', async (req, res) => {
 // 參數：id（記錄的 ID）
 // 功能：更新指定 ID 的記錄資料
 // 請求體：包含要更新的欄位資料（JSON 格式）
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateIdParam, validateUpdateRecord, async (req, res) => {
   try {
-    // 更新記錄
-    const updated = await Record.updateById(req.params.id, req.body);
+    // 更新記錄（使用驗證後的資料）
+    const updated = await Record.updateById(req.validatedParams.id, req.validatedData);
 
     // 如果找不到要更新的記錄，回傳 404 錯誤
     if (!updated) return res.status(404).json({ message: "Record not found" });
@@ -151,10 +159,10 @@ router.put('/:id', async (req, res) => {
 // 路由：GET /api/records/:id
 // 參數：id（記錄的 ID）
 // 功能：根據 ID 查詢特定的記錄
-router.get('/:id', async (req, res) => {
+router.get('/:id', validateIdParam, async (req, res) => {
   try {
-    // 根據 ID 查詢記錄
-    const record = await Record.findById(req.params.id);
+    // 根據 ID 查詢記錄（使用驗證後的 ID）
+    const record = await Record.findById(req.validatedParams.id);
 
     // 如果找不到記錄，回傳 404 錯誤
     if (!record) return res.status(404).json({ message: 'Record not found' });
@@ -171,10 +179,10 @@ router.get('/:id', async (req, res) => {
 // 路由：DELETE /api/records/:id
 // 參數：id（記錄的 ID）
 // 功能：刪除指定 ID 的記錄
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', validateIdParam, async (req, res) => {
   try {
-    // 根據 ID 刪除記錄
-    const deleted = await Record.deleteById(req.params.id);
+    // 根據 ID 刪除記錄（使用驗證後的 ID）
+    const deleted = await Record.deleteById(req.validatedParams.id);
 
     // 如果找不到要刪除的記錄，回傳 404 錯誤
     if (!deleted) return res.status(404).json({ message: "Record not found" });

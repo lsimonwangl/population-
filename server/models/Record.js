@@ -91,22 +91,40 @@ const findBySiteAndVillage = async (siteId, village) => {
   return rows;
 };
 
-// 更新記錄
+// 更新記錄（只更新有提供的欄位）
 const updateById = async (id, data) => {
+  // 動態構建 UPDATE 語句，只更新有提供的欄位
+  const updates = [];
+  const values = [];
+
+  // 允許更新的欄位列表
+  const allowedFields = [
+    'statistic_yyyymm', 'district_code', 'site_id', 'village',
+    'birth_total', 'birth_total_m', 'birth_total_f',
+    'death_total', 'death_m', 'death_f',
+    'marry_pair', 'divorce_pair'
+  ];
+
+  // 只處理有提供且非 undefined 的欄位
+  allowedFields.forEach(field => {
+    if (data[field] !== undefined) {
+      updates.push(`${field} = ?`);
+      values.push(data[field]);
+    }
+  });
+
+  // 如果沒有任何欄位要更新，直接返回當前記錄
+  if (updates.length === 0) {
+    return findById(id);
+  }
+
+  // 添加 id 到參數列表
+  values.push(id);
+
+  // 執行更新
   const [result] = await pool.query(
-    `UPDATE records SET
-      statistic_yyyymm = ?, district_code = ?, site_id = ?, village = ?,
-      birth_total = ?, birth_total_m = ?, birth_total_f = ?,
-      death_total = ?, death_m = ?, death_f = ?,
-      marry_pair = ?, divorce_pair = ?
-     WHERE id = ?`,
-    [
-      data.statistic_yyyymm, data.district_code, data.site_id, data.village,
-      data.birth_total, data.birth_total_m, data.birth_total_f,
-      data.death_total, data.death_m, data.death_f,
-      data.marry_pair, data.divorce_pair,
-      id
-    ]
+    `UPDATE records SET ${updates.join(', ')} WHERE id = ?`,
+    values
   );
 
   if (result.affectedRows === 0) {
@@ -116,14 +134,19 @@ const updateById = async (id, data) => {
   return findById(id);
 };
 
-// 刪除記錄
+// 刪除記錄（原子性操作）
 const deleteById = async (id) => {
+  // 先查詢記錄（用於返回被刪除的資料）
   const record = await findById(id);
-  if (!record) {
+
+  // 直接執行刪除並檢查影響的行數
+  const [result] = await pool.query('DELETE FROM records WHERE id = ?', [id]);
+
+  // 如果沒有刪除任何記錄（可能已被其他請求刪除），返回 null
+  if (result.affectedRows === 0) {
     return null;
   }
 
-  await pool.query('DELETE FROM records WHERE id = ?', [id]);
   return record;
 };
 

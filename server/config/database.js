@@ -14,13 +14,14 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'population',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 10  // 限制佇列長度，防止記憶體洩漏
 });
 
 // 初始化資料表結構
 const initDatabase = async () => {
+  let connection;
   try {
-    const connection = await pool.getConnection();
+    connection = await pool.getConnection();
 
     // 建立 records 資料表
     await connection.query(`
@@ -46,11 +47,15 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
-    connection.release();
     console.log('MySQL database initialized successfully');
   } catch (err) {
     console.error('Error initializing database:', err);
     throw err;
+  } finally {
+    // 確保連線一定會被釋放，即使發生錯誤
+    if (connection) {
+      connection.release();
+    }
   }
 };
 

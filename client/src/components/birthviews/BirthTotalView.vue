@@ -9,7 +9,7 @@
     <h2>查詢某月份的出生總數</h2>
 
     <!-- 輸入欄位：年月格式 YYYYMM -->
-    <MonthSelector v-model: ="selectedMonth" />
+    <MonthSelector v-model="selectedMonth" />
 
     <!-- 查詢按鈕 -->
     <button @click="fetchBirthTotal">查詢</button>
